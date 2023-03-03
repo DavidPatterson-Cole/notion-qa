@@ -12,13 +12,21 @@ import torch
 import re
 from transformers import AutoTokenizer
 import concurrent.futures
+import cohere
+import os
+co = cohere.Client(os.environ.get('COHERE_API_KEY'))
 
 # question='Why isn\'t this code working'
 # question='Look up all the February 2021 pandadoc emails and use them to create a list of clients'
-question='Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier, Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
+question='What was the date the most recent email was sent from Moe Faroukh, Abby Diamond, Vikas Sakral, Vamsi Motepalli, Hayk Saakian, Sergei Chernyshov, Yatin Sood, Renfred C, Faizan Malik, Cat O\'Brien'
+# question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
+# question='Find the $ value paid to Air Canada. If multiple, record all $ values paid.'
+# question='Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier, Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
 # question='Look up all the February 2021 pandadoc emails and use them to create the list of names from those emails'
 # question='Create a list of February clients. Start by looking up all the February 2021 pandadoc emails. When the email says "Contract Completed", at that name to the list of clients.'
 # part2_question='From this email, who is the client?'
+
+intermediate_question = ''
 
 def get_summary(prompt):
     summary = openai.Completion.create(
@@ -49,11 +57,18 @@ def vectordb_qa_tool(query: str) -> str:
 
     # Step 1: query FAISS 
     vectors = index.similarity_search(query, k=4)
+    vectors_text = [vector.page_content for vector in vectors]
+    print(f'{intermediate_question=}')
+    # Should I use query or intermediate_question?
+    # rerank_review = co.rerank(query=intermediate_question, documents=vectors_text, top_n=50)
+    # print(f'\n{rerank_review=}\n')
+    reranked_vectors = co.rerank(query=intermediate_question, documents=vectors_text, top_n=4)
     # clean_vectors = ''
     answers = []
-    for vector in vectors:
+    for vector in reranked_vectors:
       # clean_vectors += f'{vector.page_content}\n'
-      print(f'{vector.page_content=}\n')
+      rerank_text = vector.document['text']
+      # print(f'{rerank_text=}\n')
       answer_prompt_template = """
 Given the following extracted parts of a long document and a task, create a final answer.
 If you don't know how to complete the task, just say that you don't know. Don't try to make up an answer.
@@ -78,12 +93,13 @@ Document 2: \"""
 {summaries}
 \"""
 """
-      answer_prompt_template = answer_prompt_template.replace("{question}", query)
-      answer_prompt_template = answer_prompt_template.replace("{summaries}", vector.page_content)
+      answer_prompt_template = answer_prompt_template.replace("{question}", intermediate_question)
+      answer_prompt_template = answer_prompt_template.replace("{summaries}", rerank_text)
+      # answer_prompt_template = answer_prompt_template.replace("{summaries}", vector.page_content)
       response = openai.Completion.create(
         model="text-davinci-003",
         prompt=answer_prompt_template,
-        max_tokens=512,
+        max_tokens=128,
         temperature=0
       )['choices'][0]['text']
       print(f'{answer_prompt_template=}')
@@ -97,6 +113,8 @@ def requests_tool_placeholder(query: str):
 
 
 def agent(question):
+  global intermediate_question
+  intermediate_question = question
   print(f'{question=}')
   tools = [
       Tool(

@@ -52,7 +52,7 @@ def vectordb_qa_tool(query: str) -> str:
     # Step 1: query FAISS 
     docs_and_scores = index.similarity_search_with_score(query, k=6)
     #sort docs and scores by highest score first 
-    docs_and_scores.sort(key=lambda x: x[1], reverse=True)
+    docs_and_scores.sort(key=lambda x: x[1])
     vectors = [doc for doc, _ in docs_and_scores]
     clean_vectors = ''
     for vector in vectors:
