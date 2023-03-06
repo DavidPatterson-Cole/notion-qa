@@ -48,9 +48,9 @@ def main():
     try:
         # Call the Gmail API
         service = build('gmail', 'v1', credentials=creds)
-        num_requested_emails = 2000 
-        email_count = 500
-        email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/28").execute()
+        num_requested_emails = 5 
+        email_count = 5
+        email_list_response = service.users().messages().list(userId='me', maxResults=5, q="after:2022/02/01 before:2022/02/28").execute()
         email_list = email_list_response['messages']
         nextPageToken = None
         try:
@@ -87,6 +87,9 @@ def main():
               received_date = header['value']
             if header['name'] == 'Date':
               date = header['value']
+            if header['name'] == 'Content-Type':
+              part_mimetype = header['value']
+              print(f'{part_mimetype=}')
 
           if 'payload' in item and 'parts' in item['payload']:
             if 'data' in item['payload']['parts'][0]['body']:
@@ -111,7 +114,13 @@ def main():
               sources = []
               for i, split in enumerate(splits):
                 # new_splits.append('SUBJECT: ', subject + '|' + 'EMAIL_FROM: ', email_from + '|' + 'RECEIVED DATE: ', json.dumps(received_date) + '|' + 'CONTENT: ', split)
-                new_splits.append('SUBJECT: ' + subject + '|' + 'EMAIL_FROM: ' + email_from + '|' + 'RECEIVED DATE: ' + date + '|' + 'CONTENT: ' + split)
+                print(f'{subject=}')
+                print(f'{split=}')
+                soup = BeautifulSoup(split, 'html.parser')
+                soup_text = soup.get_text()
+                print(f'{soup.prettify()=}')
+                print(f'{soup_text=}')
+                new_splits.append('SUBJECT: ' + subject + '|' + 'EMAIL_FROM: ' + email_from + '|' + 'RECEIVED DATE: ' + date + '|' + 'CONTENT: ' + soup_text)
                 sources.append({"source": subject+str(i)})
               docs.extend(new_splits)
               metadatas.extend(sources)
