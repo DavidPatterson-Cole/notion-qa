@@ -16,27 +16,32 @@ import cohere
 import os
 co = cohere.Client(os.environ.get('COHERE_API_KEY'))
 
-# question='Why isn\'t this code working'
-# question='Look up all the February 2021 pandadoc emails and use them to create a list of clients'
-question='What was the date the most recent email was sent from Moe Faroukh, Abby Diamond, Vikas Sakral, Vamsi Motepalli, Hayk Saakian, Sergei Chernyshov, Yatin Sood, Renfred C, Faizan Malik, Cat O\'Brien'
-# question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
-# question='Find the $ value paid to Air Canada. If multiple, record all $ values paid.'
-# question='Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier, Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
+
+selection = "notion-feb23"
+faiss_locations = {"gmail": "faiss", "notion-feb22": "faiss_moonchaser_notion_feb22", "notion-feb23": "faiss_moonchaser_xs_embedding_feb23"}
+question='Is billing paused for Ariel Zeckleman and why? '
 # question='Look up all the February 2021 pandadoc emails and use them to create the list of names from those emails'
 # question='Create a list of February clients. Start by looking up all the February 2021 pandadoc emails. When the email says "Contract Completed", at that name to the list of clients.'
-# part2_question='From this email, who is the client?'
+faiss_location = ''
+for key, value in faiss_locations.items():
+    if key == selection:
+        faiss_location = value
+        break
+    # faiss_location = 'faiss_moonchaser_notion_feb22'
+
+print("faiss location", faiss_location)
 
 intermediate_question = ''
 
-def get_summary(prompt):
-    summary = openai.Completion.create(
-        model="text-davinci-003",
-        prompt=prompt,
-        max_tokens=512,
-        temperature=0
-    )['choices'][0]['text']
-    print(f'{summary=}')
-    return summary
+# def get_summary(prompt):
+#     summary = openai.Completion.create(
+#         model="text-davinci-003",
+#         prompt=prompt,
+#         max_tokens=512,
+#         temperature=0
+#     )['choices'][0]['text']
+#     print(f'{summary=}')
+#     return summary
 
 def ask_question(query: str) -> str:
   user_input = input(query)
@@ -49,14 +54,14 @@ def ask_question(query: str) -> str:
 def vectordb_qa_tool(query: str) -> str:
     langchain.verbose=True
     """Tool to answer a question."""
-    index = FAISS.load_local('faiss', OpenAIEmbeddings())
+    index = FAISS.load_local(faiss_location, OpenAIEmbeddings())
 
     # chain = VectorDBQAWithSourcesChain.from_llm(llm=OpenAI(temperature=0), vectorstore=index, k=8)
     # result = chain({"question": query})
     # return result['answer'], result['sources']
 
     # Step 1: query FAISS 
-    vectors = index.similarity_search(query, k=4)
+    vectors = index.similarity_search(query, k=50)
     vectors_text = [vector.page_content for vector in vectors]
     print(f'{intermediate_question=}')
     # Should I use query or intermediate_question?
@@ -65,6 +70,7 @@ def vectordb_qa_tool(query: str) -> str:
     reranked_vectors = co.rerank(query=intermediate_question, documents=vectors_text, top_n=4)
     # clean_vectors = ''
     answers = []
+    print_template = True
     for vector in reranked_vectors:
       # clean_vectors += f'{vector.page_content}\n'
       rerank_text = vector.document['text']
@@ -93,6 +99,11 @@ Document 2: \"""
 {summaries}
 \"""
 """
+
+      if print_template:
+          print("--------------------answer prompt template (before filling) --------------------- \n")
+          print(f'{answer_prompt_template=}' + '\n\n')
+          print_template = False
       answer_prompt_template = answer_prompt_template.replace("{question}", intermediate_question)
       answer_prompt_template = answer_prompt_template.replace("{summaries}", rerank_text)
       # answer_prompt_template = answer_prompt_template.replace("{summaries}", vector.page_content)
@@ -102,8 +113,12 @@ Document 2: \"""
         max_tokens=128,
         temperature=0
       )['choices'][0]['text']
-      print(f'{answer_prompt_template=}')
-      print(f'{response=}')
+      # print("--------------------answer prompt template--------------------- \n")
+      # print(f'{answer_prompt_template=}' + '\n')
+      print("--------------------re-rank text--------------------- \n")
+      print(f'{rerank_text=}' + '\n')
+      print("--------------------response--------------------- \n")
+      print(f'{response=}'  + '\n')
       answers.append(response)
     return answers
 
@@ -115,7 +130,7 @@ def requests_tool_placeholder(query: str):
 def agent(question):
   global intermediate_question
   intermediate_question = question
-  print(f'{question=}')
+  print(f'{question=}' + '\n')
   tools = [
       Tool(
           name = "vector_db_qa",
@@ -257,8 +272,8 @@ def main():
   # multipleEntities("Find the LinkedIn of Lana Tang, Christina Nemez, Marina Nester, and Charlotte Gall")
 
   # "many question" with no entities
-  # agent(question) # question is pulled from the global scope
-  multipleEntities(question)
+  agent(question) # question is pulled from the global scope
+  # multipleEntities(question)
 
 
   # Specific component tests
