@@ -79,9 +79,9 @@ def main():
     try:
         # Call the Gmail API
         service = build('gmail', 'v1', credentials=creds)
-        num_requested_emails = 3000 
+        num_requested_emails = 3000
         email_count = 500
-        email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2020/12/20 before:2021/02/28").execute()
+        email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/28").execute()
         email_list = email_list_response['messages']
         nextPageToken = None
         try:
@@ -91,7 +91,7 @@ def main():
           print('No next page token')
           pass
         while email_count < num_requested_emails and nextPageToken:
-            email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2020/12/20 before:2021/02/28", pageToken=nextPageToken).execute()
+            email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/28", pageToken=nextPageToken).execute()
             # print(email_list_response['messages'])
             email_list.extend(email_list_response['messages'])
             try: 
@@ -101,13 +101,22 @@ def main():
               print('No next page token')
             email_count += 500
         results = []
+        # print(f'{email_list}')
         for email in email_list:
           if email['id']:
             results.append(service.users().messages().get(userId='me', id=email['id']).execute())
         print(f'{len(results)=}')
+        # snippets = []
+        # for result in results:
+        #   try:
+        #     snippets.append(result['snippet'])
+        #   except:
+        #     print(f'{result=}')
+        # print(f'{snippets=}')
         metadatas = []
         docs = []
         skipped_emails = 0
+        missed_parts = 0
         for item in results:
           for header in item['payload']['headers']:
             if header['name'] == 'Subject':
@@ -143,6 +152,8 @@ def main():
                     new_parts.append(part)
                   else:
                     if part['mimeType'] in skipped_mimetypes:
+                      # print(f'{subject=}')
+                      # print(f'{part=}')
                       continue
                       # print('SKIPPED - part[\'mimeType\']', part['mimeType'])
                     elif parent_mimetype == 'multipart/alternative':
@@ -154,7 +165,7 @@ def main():
                           print(f"KeyError: {e}")
                           print(f'{subject=}')
                           print(part)
-                      if part['mimeType'] == 'text/html':
+                      if 'text/html' in part['mimeType']:
                         # print(f'HTML: {body=}')
                         # print('part[\'mimeType\']', part['mimeType'])
                         soup = BeautifulSoup(body, features='lxml')
@@ -176,12 +187,12 @@ def main():
                           print(f"KeyError: {e}")
                           print(f'{subject=}')
                           print(part)
-                      if part['mimeType'] == 'text/plain':
+                      if 'text/plain' in part['mimeType']:
                         # print('part[\'mimeType\']', part['mimeType'])
                         # print(f'Plain: {body=}')
                         # partial_body += body
                         full_body.append(body)
-                      elif part['mimeType'] == 'text/html':
+                      elif 'text/html' in part['mimeType']:
                         # print(f'HTML: {body=}')
                         # print('part[\'mimeType\']', part['mimeType'])
                         soup = BeautifulSoup(body, features='lxml')
@@ -189,6 +200,8 @@ def main():
                         full_body.append(soup_text)
                         # partial_body += soup_text
                       else:
+                        missed_parts += 1
+                        # print(f'{subject=}')
                         continue
                         # print('MISSED - part[\'mimeType\']', part['mimeType'])
               parts_list = new_parts
@@ -201,13 +214,17 @@ def main():
             full_body = item['payload']['body']['data']
             full_body = base64.urlsafe_b64decode(full_body.encode('UTF-8'))
             full_body = full_body.decode('utf-8')
-            if part['mimeType'] == 'text/plain':
+            # print(f'{full_body=}')
+            if 'text/plain' in part_mimetype:
               continue
-            elif part['mimeType'] == 'text/html':
+            elif 'text/html' in part_mimetype:
               soup = BeautifulSoup(full_body, 'lxml')
               soup_text = soup.get_text()
               full_body = soup_text
             else:
+              print(f'{subject=}')
+              print(f'{part_mimetype=}')
+              missed_parts += 1
               continue
               # print('MISSED - part[\'mimeType\']', part['mimeType'])
             # print(f'{subject=}')
@@ -235,6 +252,7 @@ def main():
             docs.extend(new_splits)
             metadatas.extend(sources)
 
+        print(f'{missed_parts=}')
         print(f'{skipped_emails=}')
         print(f'{len(docs)=}')
         # print(docs[0:10])

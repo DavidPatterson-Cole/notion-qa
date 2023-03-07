@@ -17,9 +17,13 @@ import os
 co = cohere.Client(os.environ.get('COHERE_API_KEY'))
 
 
-selection = "notion-feb23"
+selection = "gmail"
 faiss_locations = {"gmail": "faiss", "notion-feb22": "faiss_moonchaser_notion_feb22", "notion-feb23": "faiss_moonchaser_xs_embedding_feb23"}
-question='Is billing paused for Ariel Zeckleman and why? '
+# question='Is billing paused for Ariel Zeckleman and why? '
+# question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
+question='Find the LinkedIn of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
+# question-'Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier , Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
+# question='What was the date the most recent email was sent from Moe Faroukh, Abby Diamond, Vikas Sakral, Vamsi Motepalli, Hayk Saakian, Sergei Chernyshov, Yatin Sood, Renfred C, Faizan Malik, Cat O\'Brien'
 # question='Look up all the February 2021 pandadoc emails and use them to create the list of names from those emails'
 # question='Create a list of February clients. Start by looking up all the February 2021 pandadoc emails. When the email says "Contract Completed", at that name to the list of clients.'
 faiss_location = ''
@@ -61,7 +65,8 @@ def vectordb_qa_tool(query: str) -> str:
     # return result['answer'], result['sources']
 
     # Step 1: query FAISS 
-    vectors = index.similarity_search(query, k=50)
+    vectors = index.similarity_search(query, k=20)
+    print(f'{vectors=}')
     vectors_text = [vector.page_content for vector in vectors]
     print(f'{intermediate_question=}')
     # Should I use query or intermediate_question?
@@ -138,17 +143,17 @@ def agent(question):
           description="Access contextual information such as emails, documents, databases. This should be the first place to look for information."
       ),
       Tool(
-          name = "requests_tool_placholder",
-          func=requests_tool_placeholder,
-          description="A portal to the internet. Use this when you need to get specific content from a site. Input should be a specific url, and the output will be all the text on that page."
-      ),
-      Tool(
           name="ask_question",
           func=ask_question,
           description="If something is unclear, ask a question about it"
       )
 
   ]
+      #   Tool(
+      #     name = "requests_tool_placholder",
+      #     func=requests_tool_placeholder,
+      #     description="Use this when you need to get content from a website. Input should be an existing url, do not guess a url, and the output will be all the text on that page. Only use this if you are highly confident of the URL input - do not try to guess a URL."
+      # ),
 
   # load tools returns a list of tools but I don't want to add a list to a list, so I just add the first element
   # tools.append(load_tools(["requests"])[0])
@@ -157,38 +162,33 @@ def agent(question):
 Complete the following tasks as best you can. You have access to the following tools:
 
 vector_db_qa: Access contextual information such as emails, documents, databases. This should be the first place to look for information.
-requests_tool_placholder: A portal to the internet. Use this when you need to get specific content from a site. Input should be a specific url, and the output will be all the text on that page.
 ask_question: If something is unclear, ask a question about it
 
-Use the following format:
+If you are unable to complete the task, just say I don't know. Don't try to make up an answer. Always respond with the following format:
 
 Question: the input question you must answer
 Thought: you should always think about what to do
-Action: the action to take, should be one of [vector_db_qa, requests_tool_placholder]
+Action: the action to take, should be one of [vector_db_qa, ask_question]
 Action Input: the input to the action
 Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation can repeat N times)
 Thought: I now know the final answer
 Final Answer: the final answer to the original input question
 
-
-
 EXAMPLES:
 Question: Which clients did we work with in March 2022?
 Thought: What does client mean in this context?
 Action: ask_question
 Action Input: What does client mean in this context?
-
-Question: Summarize this page: https://en.wikipedia.org/wiki/2023_Turkey%E2%80%93Syria_earthquake
-Thought: I need to get the page data and then summarize it.
-Action: Requests
-Action Input: https://en.wikipedia.org/wiki/2023_Turkey%E2%80%93Syria_earthquake
+Observation: I don't know
+Thought: I now know the final answer
+Final Answer: I don't know
 
 Question: Look up all the March 2022 documents and use them to create a list of LinkedIn URLs
 Thought: I need to use the vector_db_qa tool to find the emails and then extract the linkedin
 Action: vector_db_qa
 Action Input: March 2022 linkedin
-Answer: https://www.linkedin.com/in/david-lee-5b1b4b1b/, https://www.linkedin.com/in/ganesh-thirumurthi-b9518583/
+Observation: https://www.linkedin.com/in/david-lee-5b1b4b1b/, https://www.linkedin.com/in/ganesh-thirumurthi-b9518583/
 Thought: I now know the final answer
 Final Answer: https://www.linkedin.com/in/david-lee-5b1b4b1b/, https://www.linkedin.com/in/ganesh-thirumurthi-b9518583/
 
@@ -272,8 +272,8 @@ def main():
   # multipleEntities("Find the LinkedIn of Lana Tang, Christina Nemez, Marina Nester, and Charlotte Gall")
 
   # "many question" with no entities
-  agent(question) # question is pulled from the global scope
-  # multipleEntities(question)
+  # agent(question) # question is pulled from the global scope
+  multipleEntities(question)
 
 
   # Specific component tests
