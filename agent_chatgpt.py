@@ -4,6 +4,18 @@ from langchain.agents import ZeroShotAgent, Tool, AgentExecutor
 from langchain import OpenAI, LLMChain, VectorDBQAWithSourcesChain, PromptTemplate
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    AIMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
+from langchain.schema import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage
+)
 import faiss
 import pickle
 import openai
@@ -14,14 +26,15 @@ from transformers import AutoTokenizer
 import concurrent.futures
 import cohere
 import os
+
 co = cohere.Client(os.environ.get('COHERE_API_KEY'))
 
 
 selection = "gmail"
 faiss_locations = {"gmail": "faiss", "notion-feb22": "faiss_moonchaser_notion_feb22", "notion-feb23": "faiss_moonchaser_xs_embedding_feb23"}
 # question='Is billing paused for Ariel Zeckleman and why? '
-# question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
-question='Find the LinkedIn of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
+question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey'
+# question='Find the LinkedIn of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
 # question-'Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier , Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
 # question='What was the date the most recent email was sent from Moe Faroukh, Abby Diamond, Vikas Sakral, Vamsi Motepalli, Hayk Saakian, Sergei Chernyshov, Yatin Sood, Renfred C, Faizan Malik, Cat O\'Brien'
 # question='Look up all the February 2021 pandadoc emails and use them to create the list of names from those emails'
@@ -112,12 +125,20 @@ Document 2: \"""
       answer_prompt_template = answer_prompt_template.replace("{question}", intermediate_question)
       answer_prompt_template = answer_prompt_template.replace("{summaries}", rerank_text)
       # answer_prompt_template = answer_prompt_template.replace("{summaries}", vector.page_content)
-      response = openai.Completion.create(
-        model="text-davinci-003",
-        prompt=answer_prompt_template,
+      response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        temperature=0,
         max_tokens=128,
-        temperature=0
-      )['choices'][0]['text']
+        messages=[
+          {"role": "user", "content": answer_prompt_template}
+        ]
+      )['choices'][0]['message']['content']
+      # response = openai.Completion.create(
+      #   model="text-davinci-003",
+      #   prompt=answer_prompt_template,
+      #   max_tokens=128,
+      #   temperature=0
+      # )['choices'][0]['text']
       # print("--------------------answer prompt template--------------------- \n")
       # print(f'{answer_prompt_template=}' + '\n')
       print("--------------------re-rank text--------------------- \n")
@@ -149,11 +170,12 @@ def agent(question):
       )
 
   ]
-      #   Tool(
-      #     name = "requests_tool_placholder",
-      #     func=requests_tool_placeholder,
-      #     description="Use this when you need to get content from a website. Input should be an existing url, do not guess a url, and the output will be all the text on that page. Only use this if you are highly confident of the URL input - do not try to guess a URL."
-      # ),
+
+# Tool(
+#     name = "requests_tool_placholder",
+#     func=requests_tool_placeholder,
+#     description="Use this when you need to get content from a website. Input should be an existing url, do not guess a url, and the output will be all the text on that page. Only use this if you are highly confident of the URL input - do not try to guess a URL."
+# ),
 
   # load tools returns a list of tools but I don't want to add a list to a list, so I just add the first element
   # tools.append(load_tools(["requests"])[0])
@@ -197,8 +219,13 @@ Begin!"
 Question: {input}
 {agent_scratchpad}
 """
-  # agent_prompt_template = agent_prompt_template.replace("{input}", question)
-  llm_chain = LLMChain(llm=OpenAI(temperature=0), prompt=PromptTemplate(input_variables=["input", "agent_scratchpad"],template=agent_prompt_template))
+  # prompt = ChatPromptTemplate(input_variables=["input", "agent_scratchpad"], messages=SystemMessagePromptTemplate(agent_prompt_template))
+  # llm_chain = LLMChain(llm=ChatOpenAI(temperature=0), prompt=prompt)
+
+  # llm_chain = LLMChain(llm=OpenAI(temperature=0), prompt=PromptTemplate(input_variables=["input", "agent_scratchpad"],template=agent_prompt_template))
+  llm_chain = LLMChain(llm=ChatOpenAI(temperature=0), prompt=PromptTemplate(input_variables=["input", "agent_scratchpad"],template=agent_prompt_template))
+
+  # llm_chain = LLMChain(llm=OpenAI(temperature=0), prompt=PromptTemplate(input_variables=["input", "agent_scratchpad"],template=agent_prompt_template))
 
   tool_names = [tool.name for tool in tools]
   # tool_names = ["vector_db_qa", "requests_tool_placeholder"]
@@ -223,13 +250,21 @@ Question: {question}
 Answer:
 """
   prompt_template_1 = prompt_template_1.replace("{question}", question)
-  response = openai.Completion.create(
-    model="text-davinci-003",
-    # model="text-curie-001",
-    prompt=prompt_template_1,
+  response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    temperature=0,
     max_tokens=500,
-    temperature=0
-  )['choices'][0]['text']
+    messages=[
+      {"role": "user", "content": prompt_template_1}
+    ]
+  )['choices'][0]['message']['content']
+  # response = openai.Completion.create(
+  #   # model="text-davinci-003",
+  #   # model="text-curie-001",
+  #   prompt=prompt_template_1,
+  #   max_tokens=500,
+  #   temperature=0
+  # )['choices'][0]['text']
   print(response)
   entities, question = response.split("--|--")
   # print (f'{entities=}')
