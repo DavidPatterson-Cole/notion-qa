@@ -143,3 +143,6 @@ text.pkl
 docs.index
 faiss_store.pkl
 /faiss
+invoices.pkl
+calendly.pkl
+zapier.pkl

@@ -117,6 +117,7 @@ def main():
         docs = []
         skipped_emails = 0
         missed_parts = 0
+        long_split_list = []
         for item in results:
           for header in item['payload']['headers']:
             if header['name'] == 'Subject':
@@ -235,12 +236,13 @@ def main():
             skipped_emails +=1
           if len(full_body) > 20:
             # print('--------SPLIT--------')
-            splits = text_splitter(full_body)
+            splits = text_splitter(full_body, long_split_list)
             # longest_element = max(splits, key=len)
             # print(f'{len(longest_element)=}')
             new_splits = []
             sources = []
             for i, split in enumerate(splits):
+              # print(f'{split=}')
               # new_splits.append('SUBJECT: ', subject + '|' + 'EMAIL_FROM: ', email_from + '|' + 'RECEIVED DATE: ', json.dumps(received_date) + '|' + 'CONTENT: ', split)
               # print(f'{subject=}')
               # print(f'{split=}')
@@ -254,12 +256,16 @@ def main():
 
         print(f'{missed_parts=}')
         print(f'{skipped_emails=}')
+        print(f'{len(long_split_list)=}')
+        if len(long_split_list):
+          print(f'{max(long_split_list)=}')
         print(f'{len(docs)=}')
         # print(docs[0:10])
         for doc in docs:
           if len(doc) > 5000:
-            print(len(doc))
-            print(doc[0:150])
+            # print(len(doc))
+            # print(doc[0:150])
+            continue
 
         store = FAISS.from_texts(docs, OpenAIEmbeddings(), metadatas=metadatas)
         # This creates an index out of the store data structure
@@ -279,28 +285,32 @@ def main():
         print(f'An error occurred: {error}')
 
 
-def text_splitter(text):
+def text_splitter(text, long_split_list):
     # print(text)
     chunks = []
     chunk = ""
     # naive_split = text.split(". | , | \n | ; | :")
     text = re.sub(r'[\r,\xa0,\u200c,\t]', ' ', text)
     # naive_split = re.split(r"[,.;:\n](?=[^\s])", text)
-    naive_split = re.split(r"([,.;:\n])", text)
+    naive_split = re.split(r"([,.?;:\n])", text)
 
     # print(naive_split)
     # print(len(naive_split))
     for split in naive_split:
       # print(split)
-      if len(split) > 4000:
-        print(split)
-      if len(chunk + split) < 3900:
+      
+      if len(split) >= 4000:
+        # print(split)
+        long_split_list.append(len(split))
+        # print(split)
+      if len(chunk + split) < 4000:
         # print('here')
         chunk += split
         # print(chunk)
       else:
         # print(chunk)
         chunks.append(chunk)
+        chunks.append(split) # this is risky because it could be over 400
         chunk = ""
     chunks.append(chunk)
     # print(chunks)
