@@ -21,8 +21,12 @@ selection = "gmail"
 faiss_locations = {"gmail": "faiss", "notion-feb22": "faiss_moonchaser_notion_feb22", "notion-feb23": "faiss_moonchaser_xs_embedding_feb23"}
 # question='Is billing paused for Ariel Zeckleman and why? '
 # question='Find the emails of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
-question='Find the LinkedIn of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
-# question-'Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier , Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
+# question='Find the LinkedIn of Lana Tang, Christina Nemez, Annie Murray, Swetank Pandey, Max Malak, Alex Bonesteel, Sergei Chernyshov, Lara Ivkovic, Andrei Gorbushkin, Renfred C'
+# question='Find the LinkedIn of Lana Tang, Swetank Pandey, Lara Ivkovic'
+# question='Find the $ value paid to Eurostar, Calendly, Zapier, Athena. If multiple, record all $ values paid.'
+question='Find the $ value paid to Calendly. If multiple, record all $ values paid.'
+# question='Find the $ value paid to Deel, Ganesha Dirschka, Eurostar, Air Canada, Airbnb, Upwork, Bench Accounting, Calendly, Notion Labs, Zapier , Athena, Wise, Gusto, Yuan Zhu. If multiple, record all $ values paid.'
+# question='Find the $ value paid to Deel, Ganesha Dirschka, Upwork, Calendly, Zapier. If multiple, record all $ values paid.'
 # question='What was the date the most recent email was sent from Moe Faroukh, Abby Diamond, Vikas Sakral, Vamsi Motepalli, Hayk Saakian, Sergei Chernyshov, Yatin Sood, Renfred C, Faizan Malik, Cat O\'Brien'
 # question='Look up all the February 2021 pandadoc emails and use them to create the list of names from those emails'
 # question='Create a list of February clients. Start by looking up all the February 2021 pandadoc emails. When the email says "Contract Completed", at that name to the list of clients.'
@@ -36,46 +40,58 @@ for key, value in faiss_locations.items():
 print("faiss location", faiss_location)
 
 intermediate_question = ''
-
-# def get_summary(prompt):
-#     summary = openai.Completion.create(
-#         model="text-davinci-003",
-#         prompt=prompt,
-#         max_tokens=512,
-#         temperature=0
-#     )['choices'][0]['text']
-#     print(f'{summary=}')
-#     return summary
+# intermediate_question = 'What is Lana Tang\'s LinkedIn url?'
 
 def ask_question(query: str) -> str:
   user_input = input(query)
   return user_input
 
-# def loop(documents: str, input_text: str) -> List[str]:
-#   for document in documents:
-
-
 def vectordb_qa_tool(query: str) -> str:
+    # query = "Moe Faroukh most recent email. Current date: 2023-03-10."
     langchain.verbose=True
     """Tool to answer a question."""
     index = FAISS.load_local(faiss_location, OpenAIEmbeddings())
 
-    # chain = VectorDBQAWithSourcesChain.from_llm(llm=OpenAI(temperature=0), vectorstore=index, k=8)
-    # result = chain({"question": query})
-    # return result['answer'], result['sources']
-
     # Step 1: query FAISS 
-    vectors = index.similarity_search(query, k=20)
-    print(f'{vectors=}')
+    vectors = index.similarity_search(query, k=30)
+    # print(f'{vectors=}')
     vectors_text = [vector.page_content for vector in vectors]
-    print(f'{intermediate_question=}')
+    print(f'\n{query=}')
+    print("-------FAISS Vectors-------")
+    with open('calendly.pkl', 'ab') as f:
+      pickle.dump(query, f)
+      pickle.dump("-------FAISS Vectors-------", f)
+    for i, vector in enumerate(vectors_text):
+      formatted_vector = "{}".format(vector.replace("\n", "\\n"))
+      with open('calendly.pkl', 'ab') as f:
+        pickle.dump(vector, f)
+      print(formatted_vector)
+      print('\n')
+      # if i == 10:
+      #   break
+    # print(f'FAISS: {vectors_text=}')
+    # print(f'{intermediate_question=}')
     # Should I use query or intermediate_question?
-    # rerank_review = co.rerank(query=intermediate_question, documents=vectors_text, top_n=50)
-    # print(f'\n{rerank_review=}\n')
-    reranked_vectors = co.rerank(query=intermediate_question, documents=vectors_text, top_n=4)
+    # new_query = query + " most recent email"
+    # print(f'{new_query=}')
+    reranked_vectors = co.rerank(query=query, documents=vectors_text, top_n=4)
+    print("-------ReRanked Vectors-------")
+    with open('calendly.pkl', 'ab') as f:
+      pickle.dump("-------ReRanked Vectors-------", f)
+    for vector in reranked_vectors:
+      formatted_vector = "{}".format(vector.document['text'].replace("\n", "\\n"))
+      with open('calendly.pkl', 'ab') as f:
+        pickle.dump(formatted_vector, f)
+        pickle.dump(vector.relevance_score, f)
+      print(formatted_vector)
+      # print(f'{vector=}')
+      print(vector.relevance_score)
+      print('\n')
+
     # clean_vectors = ''
     answers = []
     print_template = True
+    # for vector in vectors_text:
     for vector in reranked_vectors:
       # clean_vectors += f'{vector.page_content}\n'
       rerank_text = vector.document['text']
@@ -105,10 +121,10 @@ Document 2: \"""
 \"""
 """
 
-      if print_template:
-          print("--------------------answer prompt template (before filling) --------------------- \n")
-          print(f'{answer_prompt_template=}' + '\n\n')
-          print_template = False
+      # if print_template:
+      #     print("--------------------answer prompt template (before filling) --------------------- \n")
+      #     print(f'{answer_prompt_template=}' + '\n\n')
+      #     print_template = False
       answer_prompt_template = answer_prompt_template.replace("{question}", intermediate_question)
       answer_prompt_template = answer_prompt_template.replace("{summaries}", rerank_text)
       # answer_prompt_template = answer_prompt_template.replace("{summaries}", vector.page_content)
@@ -120,10 +136,10 @@ Document 2: \"""
       )['choices'][0]['text']
       # print("--------------------answer prompt template--------------------- \n")
       # print(f'{answer_prompt_template=}' + '\n')
-      print("--------------------re-rank text--------------------- \n")
-      print(f'{rerank_text=}' + '\n')
-      print("--------------------response--------------------- \n")
-      print(f'{response=}'  + '\n')
+      # print("--------------------re-rank text--------------------- \n")
+      # print(f'{rerank_text=}' + '\n')
+      # print("--------------------response--------------------- \n")
+      # print(f'{response=}'  + '\n')
       answers.append(response)
     return answers
 
@@ -244,76 +260,11 @@ Answer:
   # return the aggregate result
   print (f'{final_answer=}')
 
-def text_splitter(text):
-    # print(text)
-    chunks = []
-    chunk = ""
-    # text = re.sub('\r', '', text)
-    # naive_split = re.split(r"[\nContent]", text)
-    naive_split = re.split(r"(\nContent)", text)
-    for split in naive_split:
-      # print(f'{split=}')
-      # print(f'{len(split)=}')
-      # print(f'{len(chunk)=}')
-      if len(chunk) < 3000:
-        # print('here')
-        chunk += split
-        # print(chunk)
-      else:
-        # print(chunk)
-        chunks.append(chunk)
-        chunk = ""
-    chunks.append(chunk)
-    # print(chunks)
-    return chunks
-
 def main():
 
-  # multipleEntities("Find the LinkedIn of Lana Tang, Christina Nemez, Marina Nester, and Charlotte Gall")
-
-  # "many question" with no entities
   # agent(question) # question is pulled from the global scope
+
   multipleEntities(question)
-
-
-  # Specific component tests
-  # vectordb_qa_tool('William Jacobson has just completed the document "Moonchaser Contract"')
+  # vectordb_qa_tool("Deel Payment")
 
 main()
-
-# prefix = """Complete the following tasks as best you can. You have access to the following tools:"""
-# # prefix = """Answer the following questions as best you can. You have access to the following tools:"""
-# suffix = """
-
-# EXAMPLES:
-# Question: What is David Patterson-Cole's email? Check the db.
-# Thought: I need to use the vector_db_qa tool to find the email.
-# Action: vector_db_qa
-# Action Input: David Patterson-Cole email 
-
-# Question: Summarize this page: https://en.wikipedia.org/wiki/2023_Turkey%E2%80%93Syria_earthquake
-# Thought: I need to get the page data and then summarize it.
-# Action: Requests
-# Action Input: https://en.wikipedia.org/wiki/2023_Turkey%E2%80%93Syria_earthquake
-
-# Question: Look up all the March 2022 documents and use them to create a list of LinkedIn URLs
-# Thought: I need to use the vector_db_qa tool to find the emails and then extract the linkedin
-# Action: vector_db_qa
-# Action Input: March 2022 linkedin
-# Answer: https://www.linkedin.com/in/david-lee-5b1b4b1b/, https://www.linkedin.com/in/ganesh-thirumurthi-b9518583/
-# Thought: I now know the final answer
-# Final Answer: https://www.linkedin.com/in/david-lee-5b1b4b1b/, https://www.linkedin.com/in/ganesh-thirumurthi-b9518583/
-
-# Begin!"
-
-# Question: {input}
-# {agent_scratchpad}"""
-
-# prompt = ZeroShotAgent.create_prompt(
-#     tools, 
-#     prefix=prefix, 
-#     suffix=suffix, 
-#     input_variables=["input", "agent_scratchpad"]
-# )
-
-# print(prompt.template)
