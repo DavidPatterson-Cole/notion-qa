@@ -79,10 +79,13 @@ def main():
     try:
         # Call the Gmail API
         service = build('gmail', 'v1', credentials=creds)
+        email_address = service.users().getProfile(userId='me').execute()['emailAddress']
+        print(f'{email_address=}')
         num_requested_emails = 3000
         email_count = 500
-        email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/28").execute()
+        email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/04").execute()
         email_list = email_list_response['messages']
+        # print(f'{email_list=}')
         nextPageToken = None
         try:
           nextPageToken = email_list_response['nextPageToken']
@@ -91,7 +94,7 @@ def main():
           print('No next page token')
           pass
         while email_count < num_requested_emails and nextPageToken:
-            email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/28", pageToken=nextPageToken).execute()
+            email_list_response = service.users().messages().list(userId='me', maxResults=500, q="after:2022/02/01 before:2022/02/04", pageToken=nextPageToken).execute()
             # print(email_list_response['messages'])
             email_list.extend(email_list_response['messages'])
             try: 
@@ -250,7 +253,8 @@ def main():
               if len(concat_split) > 5000:
                 print(concat_split[0:250])
               new_splits.append(concat_split)
-              sources.append({"source": subject+str(i)})
+              email_id = item['id']
+              sources.append({"source": subject+str(i), "url": f'https://mail.google.com/mail?authuser={email_address}#all/{email_id}'})
             docs.extend(new_splits)
             metadatas.extend(sources)
 
@@ -260,12 +264,15 @@ def main():
         if len(long_split_list):
           print(f'{max(long_split_list)=}')
         print(f'{len(docs)=}')
-        # print(docs[0:10])
+        print(docs[0:3])
+        print(metadatas[0:3])
         for doc in docs:
           if len(doc) > 5000:
             # print(len(doc))
             # print(doc[0:150])
             continue
+
+        return 
 
         store = FAISS.from_texts(docs, OpenAIEmbeddings(), metadatas=metadatas)
         # This creates an index out of the store data structure
