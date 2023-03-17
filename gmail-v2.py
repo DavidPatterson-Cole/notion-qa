@@ -272,8 +272,6 @@ def main():
             # print(doc[0:150])
             continue
 
-        return 
-
         store = FAISS.from_texts(docs, OpenAIEmbeddings(), metadatas=metadatas)
         # This creates an index out of the store data structure
         if os.path.exists('faiss'):
